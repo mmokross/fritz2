@@ -1405,11 +1405,11 @@ open class DefaultTheme : Theme {
             }
             children("&[disabled] + div") {
                 background {
-                    color{ disabled}
+                    color { disabled }
                 }
             }
             children("&[disabled] ~ div") {
-                    opacity {".5"}
+                opacity { ".5" }
             }
             children("&:not([checked]) + div > *") {
                 css("visibility:hidden;")
@@ -1486,11 +1486,11 @@ open class DefaultTheme : Theme {
             }
             children("&[disabled] + div") {
                 background {
-                    color{ disabled}
+                    color { disabled }
                 }
             }
             children("&[disabled] ~ div") {
-                opacity {".5"}
+                opacity { ".5" }
             }
         }
         override val label: Style<BasicParams> = {
@@ -1581,11 +1581,11 @@ open class DefaultTheme : Theme {
 
             children("&[disabled] + div") {
                 background {
-                    color{ disabled}
+                    color { disabled }
                 }
             }
             children("&[disabled] ~ div") {
-                opacity {".5"}
+                opacity { ".5" }
             }
         }
         override val dot: Style<BasicParams> = {
@@ -1596,7 +1596,6 @@ open class DefaultTheme : Theme {
                 color { "white" }
             }
             css("transition: transform 250ms ease 0s;")
-
 
 
         }
@@ -2018,7 +2017,7 @@ open class DefaultTheme : Theme {
 
         override fun write(
             vararg value: String,
-            tooltipPlacement: TooltipPlacements.() -> Style<BasicParams>
+            tooltipPlacement: TooltipPlacements.() -> Style<BasicParams>,
         ): Style<BasicParams> {
             return {
                 position {
@@ -2278,6 +2277,56 @@ open class DefaultTheme : Theme {
                 paddings {
                     vertical { "8px" }
                     horizontal { "0.75rem" }
+                }
+            }
+        }
+
+    }
+    override val alert = object : AlertStyles {
+
+
+        override val status = object : AlertStatus {
+            override val info: Style<BasicParams> = {
+                background { color { info } }
+            }
+            override val success: Style<BasicParams> = {
+                background { color { rgb(198, 246, 213) } }
+            }
+            override val warning: Style<BasicParams> = {
+
+                background { color { warning } }
+            }
+            override val error: Style<BasicParams> = {
+                background { color { danger } }
+            }
+
+        }
+
+        override val variants = object : AlertVariants {
+            override val subtle: Style<BasicParams> = {
+
+            }
+
+            override val solid: Style<BasicParams> = {
+
+            }
+            override val leftAccent: Style<BasicParams> = {
+
+                borders {
+                    left {
+                        style { solid }
+                        width { "4px" }
+                        color { "red" }
+                    }
+                }
+            }
+            override val topAccent: Style<BasicParams> = {
+                borders {
+                    top {
+                        style { solid }
+                        width { "4px" }
+                        color { "red" }
+                    }
                 }
             }
         }

@@ -188,6 +188,8 @@ interface Theme {
     val tooltip: Tooltip
 
     val textarea: TextAreaStyles
+
+    val alert: AlertStyles
 }
 
 /**
@@ -208,7 +210,7 @@ inline fun <E : Element, reified T : Theme> renderElement(crossinline content: R
 @ExperimentalCoroutinesApi
 inline fun <reified T : Theme> render(
     theme: T,
-    crossinline content: RenderContext.(T) -> Unit
+    crossinline content: RenderContext.(T) -> Unit,
 ): List<Tag<HTMLElement>> {
     Theme.use(theme)
     return render { currentTheme: T ->

@@ -30,7 +30,7 @@ open class ScaledValue(
     val huge: Property = larger,
     val giant: Property = huge,
     open val none: Property = tiny,
-    val full: Property = giant
+    val full: Property = giant,
 ) {
     val initial: Property = "initial"
     val inherit: Property = "inherit"
@@ -47,7 +47,7 @@ class WeightedValue(
     val strong: Property = normal,
     val stronger: Property = strong,
     val none: Property = lighter,
-    val full: Property = strong
+    val full: Property = strong,
 ) {
     val initial: Property = "initial"
     val inherit: Property = "inherit"
@@ -87,7 +87,7 @@ class Sizes(
     huge: Property = larger,
     giant: Property = huge,
     full: Property = giant,
-    val wide: ScaledValue
+    val wide: ScaledValue,
 ) : ScaledValue(normal, small, smaller, tiny, large, larger, huge, giant, full = full) {
     val borderBox: Property = "border-box"
     val contentBox: Property = "content-box"
@@ -113,7 +113,7 @@ class Sizes(
  */
 class ZIndices(
     private val baseValue: Int, private val layer: Int, private val layerStep: Int, private val overlayValue: Int,
-    private val toast: Int, private val toastStep: Int, private val modal: Int, private val modalStep: Int
+    private val toast: Int, private val toastStep: Int, private val modal: Int, private val modalStep: Int,
 ) {
 
     companion object {
@@ -214,7 +214,7 @@ class Shadows(
     val outline: ShadowProperty,
     val glowing: ShadowProperty = outline,
     val danger: ShadowProperty,
-    val none: ShadowProperty = "none"
+    val none: ShadowProperty = "none",
 )
 
 /**
@@ -223,7 +223,7 @@ class Shadows(
 class IconDefinition(
     val displayName: String,
     val viewBox: String = "0 0 24 24",
-    val svg: String
+    val svg: String,
 )
 
 /**
@@ -534,4 +534,23 @@ interface TextAreaSize {
     val small: Style<BasicParams>
     val normal: Style<BasicParams>
     val large: Style<BasicParams>
+}
+
+interface AlertStyles {
+    val variants: AlertVariants
+    val status: AlertStatus
+}
+
+interface AlertVariants {
+    val subtle: Style<BasicParams>
+    val solid: Style<BasicParams>
+    val leftAccent: Style<BasicParams>
+    val topAccent: Style<BasicParams>
+}
+
+interface AlertStatus {
+    val info: Style<BasicParams>
+    val success: Style<BasicParams>
+    val warning: Style<BasicParams>
+    val error: Style<BasicParams>
 }
