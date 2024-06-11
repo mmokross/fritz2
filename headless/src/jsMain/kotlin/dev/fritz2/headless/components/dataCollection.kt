@@ -82,21 +82,19 @@ class SelectionMode<T>(override val job: Job) : WithJob {
     fun selectItem(itemToSelect: Flow<T>, data: CollectionData<T>) {
         if (single.isSet) {
             single.handler?.let {
-                it(single.data.flatMapLatest { current ->
-                    itemToSelect.map { item ->
-                        if (data.isSame(current, item)) null else item
-                    }
+                it(itemToSelect.map { item ->
+                    val current = single.data.first()
+                    if (data.isSame(current, item)) null else item
                 })
             }
         } else {
             multi.handler?.let {
-                it(multi.data.flatMapLatest { current ->
-                    itemToSelect.map { item ->
-                        data.idProvider?.let { id ->
-                            if (current.any { id(it) == id(item) }) current.filter { id(it) != id(item) }
-                            else current + item
-                        } ?: if (current.contains(item)) current - item else current + item
-                    }
+                it(itemToSelect.map { item ->
+                    val current = multi.data.first()
+                    data.idProvider?.let { id ->
+                        if (current.any { id(it) == id(item) }) current.filter { id(it) != id(item) }
+                        else current + item
+                    } ?: if (current.contains(item)) current - item else current + item
                 })
             }
         }
@@ -194,7 +192,10 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
         } ?: list.indexOf(item)
 
     private val sorting = storeOf<SortingOrder<T>?>(null, job)
-    val sortBy = sorting.update
+
+    @Suppress("unused")
+    val sortBy: Handler<SortingOrder<T>?> = sorting.update
+    
     val toggleSorting = sorting.handle<Sorting<T>> { old, newSorting ->
         if (old?.sorting == newSorting) {
             val newDirection = when (old.direction) {
@@ -209,7 +210,10 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
     }
 
     private val filtering = storeOf<((List<T>) -> List<T>)?>(null, job)
-    val filterBy = filtering.update
+    
+    @Suppress("unused")
+    val filterBy: Handler<((List<T>) -> List<T>)?> = filtering.update
+    
     fun filterByText(toString: (T) -> String = { it.toString() }) = filtering.handle<String> { _, text ->
         { it.filter { toString(it).lowercase().contains(text.lowercase()) } }
     }
@@ -396,7 +400,7 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
                             event.preventDefault()
                             event.stopImmediatePropagation()
                         }
-                    }.distinctUntilChanged(), it)
+                    }, it)
                     selection.sanitizeSelection(filteredItems, it)
                 }
             }
@@ -404,6 +408,7 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
 
         inner class DataCollectionItem<CI : HTMLElement>(
             private val item: T,
+            @Suppress("unused")
             val collectionItemId: String?,
             tag: Tag<CI>
         ) : Tag<CI> by tag {
@@ -422,11 +427,8 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
                     data.value?.let { selection.selectItem(clicks.map { item }, it) }
                 }
 
-                active.flatMapLatest { isActive ->
-                    mousemoves.mapNotNull {
-                        if (!isActive) (item to false)
-                        else null
-                    }
+                mousemoves.mapNotNull {
+                    if (!active.first()) (item to false) else null
                 } handledBy activeItem.update
 
                 if (scrollIntoView.isSet) {
@@ -461,7 +463,7 @@ class DataCollection<T, C : HTMLElement>(tag: Tag<C>) : Tag<C> by tag {
 
             return tag(
                 this,
-                if (selection.isSet) classes(classes, "cursor-pointer") else classes,
+                if (selection.isSet) joinClasses(classes, "cursor-pointer") else classes,
                 itemId,
                 scope
             ) {

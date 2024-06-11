@@ -1,3 +1,7 @@
+import com.google.devtools.ksp.gradle.KspTask
+import com.google.devtools.ksp.gradle.KspTaskMetadata
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+
 plugins {
     kotlin("multiplatform")
     id("com.google.devtools.ksp")
@@ -15,12 +19,12 @@ kotlin {
                 optIn("kotlin.ExperimentalStdlibApi")
             }
         }
-        val commonMain by getting {
+        commonMain {
             dependencies {
                 implementation(project(":headless"))
             }
         }
-        val jsMain by getting {
+        jsMain {
             dependencies {
                 // tailwind
                 implementation(npm("tailwindcss", "_"))
@@ -38,17 +42,6 @@ kotlin {
     }
 }
 
-/**
- * KSP support - start
- */
-dependencies {
-    add("kspCommonMainMetadata",  project(":lenses-annotation-processor"))
-}
-kotlin.sourceSets.commonMain { kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin") }
-
-tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
-    if (name != "kspCommonMainKotlinMetadata") dependsOn("kspCommonMainKotlinMetadata")
-}
-/**
- * KSP support - end
- */
+// KSP support for Lens generation
+dependencies.kspCommonMainMetadata(project(":lenses-annotation-processor"))
+kotlin.sourceSets.commonMain { tasks.withType<KspTaskMetadata> { kotlin.srcDir(destinationDirectory) } }

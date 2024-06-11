@@ -91,7 +91,9 @@ radioGroup<HTMLFieldSetElement, Plan?>(tag = RenderContext::fieldset) {
 
 ## Styling the active Element
 
-A RadioGroup also provides information about which option is currently active, i.e. has the focus.
+A RadioGroup also provides information about which option is currently active, i.e. has the focus. If no option is
+selected yet, the first option can get the focus. If an option is selected, the corresponding `radioGroupOptionToggle`
+will be active.
 
 For this purpose, the scope of `radioGroupOption` offers the Boolean data stream `active`. This one can (and should)
 be used to provide a specific style for the `true` state.
@@ -107,8 +109,8 @@ radioGroup<HTMLFieldSetElement, Plan?>(tag = RenderContext::fieldset) {
             radioGroupOptionToggle {
                 // combine `selected` and `active`-Flow with `className` to react to state changes
                 className(selected.combine(active) { sel, act ->
-                    // use `classes` to attach both styling results
-                    classes(
+                    // use `joinClasses` to attach both styling results
+                    joinClasses(
                         if (sel) "bg-indigo-200" else "bg-white",
                         if (act) "ring-2 ring-indigo-500 border-transparent" else "border-gray-300"
                     )
@@ -195,9 +197,10 @@ previously selected option.
 
 ## Keyboard Interaction
 
-| Command                                        | Description                                     |
-|------------------------------------------------|-------------------------------------------------|
-| [[↑]] [[↓]] when an option-toggle is focused   | (Reverse) Cyclic selection through all options. |
+| Command                                              | Description                                     |
+|------------------------------------------------------|-------------------------------------------------|
+| [[↑]] [[↓]] when an option-toggle is focused         | (Reverse) Cyclic selection through all options. |
+| [[Space]] when focused and no option is selected yet | Selects first option.                           |
 
 ## API
 

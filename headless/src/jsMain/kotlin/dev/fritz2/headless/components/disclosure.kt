@@ -5,6 +5,8 @@ import dev.fritz2.headless.foundation.Aria
 import dev.fritz2.headless.foundation.OpenClose
 import dev.fritz2.headless.foundation.TagFactory
 import dev.fritz2.headless.foundation.addComponentStructureInfo
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.HTMLElement
@@ -12,7 +14,7 @@ import org.w3c.dom.HTMLElement
 /**
  * This class provides the building blocks to implement a disclosure.
  *
- * Use [disclosure] functions to create an instance, set up the needed [Hook]s or [Property]s and refine the
+ * Use [disclosure] functions to create an instance, set up the needed `Hook`s or `Property`s, and refine the
  * component by using the further factory methods offered by this class.
  *
  * For more information refer to the [official documentation](https://www.fritz2.dev/headless/disclosure)
@@ -22,13 +24,9 @@ class Disclosure<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
     val componentId: String by lazy { id ?: Id.next() }
 
     private var button: Tag<HTMLElement>? = null
-    private var panel: (RenderContext.() -> Unit)? = null
 
     fun render() {
         attr("id", componentId)
-        opened.render {
-            if (it) panel?.invoke(this)
-        }
     }
 
     /**
@@ -49,7 +47,7 @@ class Disclosure<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
             content()
             attr(Aria.expanded, opened.asString())
             attr("tabindex", "0")
-            toggleOnClicksEnterAndSpace()
+            activations { preventDefault(); stopPropagation() } handledBy toggle
         }.also { button = it }
     }
 
@@ -68,8 +66,9 @@ class Disclosure<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
     }
 
     inner class DisclosurePanel<CP : HTMLElement>(tag: Tag<CP>) : Tag<CP> by tag {
+
         fun render() {
-            button?.let { button -> button.attr(Aria.controls, id.whenever(opened)) }
+            button?.attr(Aria.controls, id.whenever(opened))
         }
 
         /**
@@ -119,12 +118,10 @@ class Disclosure<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
         initialize: DisclosurePanel<CP>.() -> Unit
     ) {
         addComponentStructureInfo("disclosurePanel", this@disclosurePanel.scope, this)
-        panel = {
-            tag(this, classes, "$componentId-panel", scope) {
-                DisclosurePanel(this).run {
-                    initialize()
-                    render()
-                }
+        tag(this, classes, "$componentId-panel", scope) {
+            DisclosurePanel(this).run {
+                initialize()
+                render()
             }
         }
     }

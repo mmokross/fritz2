@@ -29,7 +29,7 @@ private data class PortalContainer<C : HTMLElement>(
     val remove = PortalStack.handle { list -> list.filterNot { it.portalId == portalId } }
 
     fun render(ctx: RenderContext) =
-        tag(ctx, classes, id, scope) {
+        tag(ctx, classes, id, scope + { ctx.scope[MOUNT_POINT_KEY]?.let { set(MOUNT_POINT_KEY, it) } }) {
             content.invoke(this) { remove.invoke() }
             reference?.beforeUnmount(this, null) { _, _ -> remove.invoke() }
         }
@@ -42,21 +42,27 @@ private data class PortalContainer<C : HTMLElement>(
  *
  * @see portal
  */
-fun RenderContext.portalRoot(): RenderContext {
+fun RenderContext.portalRoot(scopeContext: (ScopeContext.() -> Unit) = {}): RenderContext {
     addComponentStructureInfo(portalRootId, this.scope, this)
-    register(PortalRenderContext) {}
+    register(PortalRenderContext.withScope(scopeContext + scope)) {}
     return PortalRenderContext
 }
 
 internal object PortalRenderContext : HtmlTag<HTMLDivElement>("div", portalRootId, null, Job(), Scope()) {
 
+    var scopeContext: ScopeContext.() -> Unit = {}
 
+    fun withScope(scopeContext: ScopeContext.() -> Unit): PortalRenderContext = apply {
+        this.scopeContext = scopeContext + scope
+    }
 
     init {
         attr(Aria.live, "polite")
 
         PortalStack.data.distinctUntilChangedBy { it.map { it.portalId } }
-            .renderEach(PortalContainer<*>::portalId, into = this) { it.render(this) }
+            .renderEach(PortalContainer<*>::portalId, into = this) {
+                it.render(this)
+            }
 
         MainScope().launch {
             delay(500)
@@ -92,7 +98,7 @@ fun <C : HTMLElement> RenderContext.portal(
         PortalContainer(
             classes = classes,
             id = portalId,
-            scope = scope,
+            scope = this.scope + scope,
             tag = tag,
             reference = reference?.mountPoint(),
             content = content

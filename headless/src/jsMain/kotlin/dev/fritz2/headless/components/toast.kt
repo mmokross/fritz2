@@ -25,10 +25,10 @@ private object ToastStore : RootStore<List<ToastSlice>>(emptyList(), job = Job()
 
     init {
         // Close the most recent toast if escape is pressed:
-        Window.keydowns
-            .map { it to current }
-            .filter { (event, toasts) -> shortcutOf(event.key) == Keys.Escape && toasts.isNotEmpty() }
-            .map { (_, toasts) -> toasts.last().id } handledBy remove
+        Window.keydownsIf { shortcutOf(this) == Keys.Escape }
+            .map { current }
+            .filter { toasts -> toasts.isNotEmpty() }
+            .map { toasts -> toasts.last().id } handledBy remove
     }
 }
 
@@ -50,7 +50,7 @@ fun <E : HTMLElement> toastContainer(
     scope: (ScopeContext.() -> Unit) = {},
     tag: TagFactory<Tag<E>>
 ) {
-    PortalRenderContext.portal(classes, id, scope, tag) {
+    PortalRenderContext.portal(classes, id, PortalRenderContext.scopeContext + scope, tag) {
         addComponentStructureInfo("toast-container ($name)", this.scope, this)
         attrIfNotSet(Aria.live, "polite")
         ToastStore.filteredByContainer(name).renderEach(into = this) { fragment ->

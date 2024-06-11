@@ -49,8 +49,6 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
         }
     }
 
-    private val state by lazy { activeIndex.data.combine(entries.data, ::Pair) }
-
     fun render() {
         attr("id", componentId)
         opened.drop(1).filter { !it } handledBy {
@@ -78,7 +76,7 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
             if (!openState.isSet) openState(storeOf(false))
             content()
             attr(Aria.expanded, opened.asString())
-            toggleOnClicksEnterAndSpace()
+            activations { preventDefault(); stopPropagation() } handledBy toggle
         }.also { button = it }
     }
 
@@ -164,7 +162,7 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
     ) = listboxValidationMessages(classes, scope, RenderContext::div, initialize)
 
     inner class ListboxItems<CI : HTMLElement>(
-        val renderContext: RenderContext,
+        renderContext: RenderContext,
         tagFactory: TagFactory<Tag<CI>>,
         classes: String?,
         scope: ScopeContext.() -> Unit
@@ -198,8 +196,7 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
             super.render()
             trapFocusWhenever(opened)
 
-            closeOnEscape()
-            closeOnBlur()
+            closeOnDismiss()
 
             attrIfNotSet("tabindex", "0")
             attr("role", Aria.Role.listbox)
@@ -207,52 +204,50 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
             label?.let { attr(Aria.labelledby, it.id) }
             attr(Aria.activedescendant, activeIndex.data.map { if (it == -1) null else "$componentId-item-$it" })
 
-            state.flatMapLatest { (currentIndex, entries) ->
-                keydowns.mapNotNull { event ->
-                    when (shortcutOf(event)) {
-                        Keys.ArrowUp -> nextItem(currentIndex, Direction.Previous, entries)
-                        Keys.ArrowDown -> nextItem(currentIndex, Direction.Next, entries)
-                        Keys.Home -> firstItem(entries)
-                        Keys.End -> lastItem(entries)
-                        else -> null
-                    }.also {
-                        if (it != null) {
-                            event.preventDefault()
-                            event.stopImmediatePropagation()
-                        }
+
+            keydowns.mapNotNull { event ->
+                val currentIndex = activeIndex.current
+                val entries = entries.current
+                when (shortcutOf(event)) {
+                    Keys.ArrowUp -> nextItem(currentIndex, Direction.Previous, entries)
+                    Keys.ArrowDown -> nextItem(currentIndex, Direction.Next, entries)
+                    Keys.Home -> firstItem(entries)
+                    Keys.End -> lastItem(entries)
+                    else -> null
+                }.also {
+                    if (it != null) {
+                        event.preventDefault()
+                        event.stopImmediatePropagation()
                     }
                 }
             } handledBy activeIndex.update
 
-            entries.data.flatMapLatest { entries ->
-                keydowns.mapNotNull { event ->
-                    if (!Keys.NamedKeys.contains(event.key)) {
-                        event.preventDefault()
-                        event.stopImmediatePropagation()
-                        event.key.first().lowercaseChar()
-                    } else null
-                }
-                    .mapNotNull { c ->
-                        if (c.isLetterOrDigit()) itemByCharacter(entries, c)
-                        else null
-                    }
+            keydowns.mapNotNull { event ->
+                if (!Keys.NamedKeys.contains(event.key)) {
+                    event.preventDefault()
+                    event.stopImmediatePropagation()
+                    event.key.first().lowercaseChar()
+                } else null
+            }.mapNotNull { c ->
+                if (c.isLetterOrDigit()) itemByCharacter(entries.current, c)
+                else null
             } handledBy activeIndex.update
 
             value.handler?.invoke(
                 this,
-                state.flatMapLatest { (currentIndex, entries) ->
-                    keydowns.filter {
-                        setOf(Keys.Enter, Keys.Space).contains(shortcutOf(it))
-                    }.mapNotNull {
-                        if (currentIndex == -1 || entries[currentIndex].disabled) {
-                            null
-                        } else {
-                            it.preventDefault()
-                            it.stopImmediatePropagation()
-                            entries[currentIndex].value
-                        }
+                keydowns.filter {
+                    setOf(Keys.Enter, Keys.Space).contains(shortcutOf(it))
+                }.mapNotNull {
+                    val currentIndex = activeIndex.current
+                    val entries = entries.current
+                    if (currentIndex == -1 || entries[currentIndex].disabled) {
+                        null
+                    } else {
+                        it.preventDefault()
+                        it.stopImmediatePropagation()
+                        entries[currentIndex].value
                     }
-                }
+                }.onEach { close() }
             )
 
             opened.filter { it }.flatMapLatest {
@@ -286,14 +281,14 @@ class Listbox<T, C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, Ope
 
                 value.handler?.invoke(
                     this,
-                    mousedowns.mapNotNull { e ->
+                    clicks.mapNotNull { e ->
                         e.preventDefault()
                         e.stopImmediatePropagation()
                         entries.current[index].let {
                             if (it.disabled) null
                             else it.value
                         }
-                    })
+                    }.onEach { close() })
 
                 value.data.map {} handledBy close
             }
@@ -430,7 +425,7 @@ fun <T, C : HTMLElement> RenderContext.listbox(
     initialize: Listbox<T, C>.() -> Unit
 ): Tag<C> {
     addComponentStructureInfo(Listbox.COMPONENT_NAME, this@listbox.scope, this)
-    return tag(this, classes(classes, "relative"), id, scope) {
+    return tag(this, joinClasses(classes, "relative"), id, scope) {
         Listbox<T, C>(this, id).run {
             initialize(this)
             render()

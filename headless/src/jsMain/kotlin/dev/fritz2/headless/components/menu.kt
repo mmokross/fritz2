@@ -43,8 +43,6 @@ class Menu<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenClose
         }
     }
 
-    private val state by lazy { activeIndex.data.combine(items.data, ::Pair) }
-
     @OptIn(ExperimentalCoroutinesApi::class)
     private val selections = storeOf(-1)
 
@@ -73,7 +71,7 @@ class Menu<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenClose
             if (!openState.isSet) openState(storeOf(false))
             content()
             attr(Aria.expanded, opened.asString())
-            toggleOnClicksEnterAndSpace()
+            activations { preventDefault(); stopPropagation() } handledBy toggle
         }.also { button = it }
     }
 
@@ -92,7 +90,7 @@ class Menu<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenClose
     }
 
     inner class MenuItems<CI : HTMLElement>(
-        val renderContext: RenderContext,
+        renderContext: RenderContext,
         tagFactory: TagFactory<Tag<CI>>,
         classes: String?,
         scope: ScopeContext.() -> Unit
@@ -103,7 +101,7 @@ class Menu<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenClose
         "$componentId-items",
         scope,
         this@Menu.opened,
-        reference = button ?: button {  },
+        reference = button ?: button { },
         ariaHasPopup = Aria.HasPopup.menu
     ) {
 
@@ -126,47 +124,44 @@ class Menu<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenClose
             super.render()
             trapFocusWhenever(opened)
 
-            closeOnEscape()
-            closeOnBlur()
+            closeOnDismiss()
 
             attrIfNotSet("tabindex", "0")
             attr("role", Aria.Role.menu)
 
-            state.flatMapLatest { (currentIndex, items) ->
-                keydowns.mapNotNull { event ->
-                    when (shortcutOf(event)) {
-                        Keys.ArrowUp -> nextItem(currentIndex, Direction.Previous, items)
-                        Keys.ArrowDown -> nextItem(currentIndex, Direction.Next, items)
-                        Keys.Home -> firstItem(items)
-                        Keys.End -> lastItem(items)
-                        else -> null
-                    }.also {
-                        if (it != null) {
-                            event.stopImmediatePropagation()
-                            event.preventDefault()
-                        }
+            keydowns.mapNotNull { event ->
+                val currentIndex = activeIndex.current
+                val items = items.current
+                when (shortcutOf(event)) {
+                    Keys.ArrowUp -> nextItem(currentIndex, Direction.Previous, items)
+                    Keys.ArrowDown -> nextItem(currentIndex, Direction.Next, items)
+                    Keys.Home -> firstItem(items)
+                    Keys.End -> lastItem(items)
+                    else -> null
+                }.also {
+                    if (it != null) {
+                        event.stopImmediatePropagation()
+                        event.preventDefault()
                     }
                 }
             } handledBy activeIndex.update
 
-            items.data.flatMapLatest { items ->
-                keydowns
-                    .mapNotNull { e -> if (e.key.length == 1) e.key.first().lowercaseChar() else null }
-                    .mapNotNull { c ->
-                        if (c.isLetterOrDigit()) itemByCharacter(items, c)
-                        else null
-                    }
-            } handledBy activeIndex.update
+            keydowns
+                .mapNotNull { e -> if (e.key.length == 1) e.key.first().lowercaseChar() else null }
+                .mapNotNull { c ->
+                    if (c.isLetterOrDigit()) itemByCharacter(items.current, c)
+                    else null
+                } handledBy activeIndex.update
 
-            state.flatMapLatest { (currentIndex, disabled) ->
-                keydowns.filter { setOf(Keys.Enter, Keys.Space).contains(shortcutOf(it)) }.mapNotNull {
-                    if (currentIndex == -1 || disabled[currentIndex].disabled) {
-                        null
-                    } else {
-                        it.preventDefault()
-                        it.stopImmediatePropagation()
-                        currentIndex
-                    }
+            keydowns.filter { setOf(Keys.Enter, Keys.Space).contains(shortcutOf(it)) }.mapNotNull {
+                val currentIndex = activeIndex.current
+                val disabled = items.current
+                if (currentIndex == -1 || disabled[currentIndex].disabled) {
+                    null
+                } else {
+                    it.preventDefault()
+                    it.stopImmediatePropagation()
+                    currentIndex
                 }
             } handledBy selections.update
 
@@ -332,7 +327,7 @@ fun <C : HTMLElement> RenderContext.menu(
     initialize: Menu<C>.() -> Unit
 ): Tag<C> {
     addComponentStructureInfo("menu", this@menu.scope, this)
-    return tag(this, classes(classes, "relative"), id, scope) {
+    return tag(this, joinClasses(classes, "relative"), id, scope) {
         Menu(this, id).run {
             initialize(this)
             render()

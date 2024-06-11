@@ -1,6 +1,7 @@
 package dev.fritz2.headless.foundation
 
 import dev.fritz2.core.*
+import dev.fritz2.headless.foundation.PopUpPanelSize.*
 import dev.fritz2.headless.foundation.utils.floatingui.core.ComputePositionConfig
 import dev.fritz2.headless.foundation.utils.floatingui.core.ComputePositionReturn
 import dev.fritz2.headless.foundation.utils.floatingui.core.Middleware
@@ -12,11 +13,9 @@ import dev.fritz2.headless.foundation.utils.floatingui.dom.computePosition
 import dev.fritz2.headless.foundation.utils.floatingui.obj
 import dev.fritz2.headless.foundation.utils.floatingui.utils.PlacementValues
 import dev.fritz2.headless.foundation.utils.floatingui.utils.StrategyValues
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.*
 import org.w3c.dom.HTMLElement
+import org.w3c.dom.Node
 
 /**
  * Enum-Class to set the width of the Popup to
@@ -54,7 +53,39 @@ abstract class PopUpPanel<C : HTMLElement>(
     private val config: ComputePositionConfig = obj {}
 ) : Tag<C> by tag, ComputePositionConfig by config {
 
+    /**
+     * We keep track of all active [PopUpPanel] instances and associate it with its parent if it is contained in another
+     * [PopUpPanel]. This information is used to keep the pop-over opened even when click events originated from nested
+     * [PopUpPanel]s, which are usually portalled and not children in the DOM.
+     * This solution is heavily inspired by [Floating UI's `useDismiss()` hook](https://floating-ui.com/docs/useDismiss).
+     */
+    private fun getChildren(): Set<Node> = buildSet {
+        var children = childToParent.filterValues { it == domNode }.keys
+        while (children.isNotEmpty()) {
+            addAll(children)
+            children = childToParent.filterValues { it in children }.keys
+        }
+        if (reference != null) add(reference.domNode)
+    }
+
+    /**
+     * Closes the [PopUpPanel] when dismissed, i.e. by clicking outside the element or pressing the Escape key.
+     */
+    fun OpenClose.closeOnDismiss() {
+        merge(
+            Window.clicks.filter { event ->
+                opened.first()
+                        && !domNode.contains(event.target as? Node)
+                        && getChildren().none { it.contains(event.target as? Node) }
+                        && event.composedPath().none { it == this }
+            },
+            Window.keydowns.filter { opened.first() && shortcutOf(it) == Keys.Escape }
+        ) handledBy close
+    }
+
     companion object {
+        private var childToParent = emptyMap<Node, Node?>()
+
         private const val FRITZ2_POPUP_HIDDEN = "fritz2-popup-hidden"
         private const val FRITZ2_POPUP_VISIBLE = "fritz2-popup-visible"
 
@@ -71,104 +102,103 @@ abstract class PopUpPanel<C : HTMLElement>(
             addGlobalStyles(
                 listOf(
                     """.$POPUP_RELATIVE {
-                        position: relative;
+                        position: relative;        
                     }""".trimIndent(),
                     """.popup[data-popup-reference-hidden] {
-                visibility: hidden;
-                pointer-events: none;
-            }""".trimIndent(),
+                        visibility: hidden;
+                        pointer-events: none;
+                    }""".trimIndent(),
                     """.popup-arrow-default {
-                width: 8px;
-                height: 8px;
-                background: inherit;
-            }""".trimIndent(),
+                        width: 8px;
+                        height: 8px;
+                    }""".trimIndent(),
                     """.popup-arrow::before {
+                        content: '';
+                        transform: rotate(45deg);
+                        background: inherit;
                         width: 100%;
                         height: 100%;
-            }""".trimIndent(),
+                    }""".trimIndent(),
                     """.popup-arrow, .popup-arrow::before {
-                position: absolute;
-            }""".trimIndent(),
+                        position: absolute;
+                        z-index: -1;
+                    }""".trimIndent(),
                     """.popup-arrow {
-                visibility: hidden;
-            }""".trimIndent(),
-                    """.popup-arrow::before {
-                content: '';
-                transform: rotate(45deg);
-                background: inherit;
-            }""".trimIndent(),
+                        visibility: hidden;
+                        background: inherit;
+                    }""".trimIndent(),
                     """.popup-arrow::before, .popup.$FRITZ2_POPUP_VISIBLE .popup-arrow::before {
-                visibility: visible;
-            }""".trimIndent(),
+                        visibility: visible;
+                    }""".trimIndent(),
                     """.popup-arrow::before, .popup.$FRITZ2_POPUP_HIDDEN .popup-arrow::before {
-                visibility: hidden;
-            }""".trimIndent(),
+                        visibility: hidden;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='bottom'] .popup-arrow::before {
-                top: -50%;
-            }""".trimIndent(),
+                        top: -50%;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='top'] .popup-arrow::before {
-                bottom: -50%;
-            }""".trimIndent(),
+                        bottom: -50%;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='left'] .popup-arrow::before {
-                right: -50%;
-            }""".trimIndent(),
+                        right: -50%;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='right'] .popup-arrow::before {
-                left: -50%;
-            }""".trimIndent(),
+                        left: -50%;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='bottom'] .popup-arrow {
-                top: 0;
-            }""".trimIndent(),
+                        top: 0;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='top'] .popup-arrow {
-                bottom: 0;
-            }""".trimIndent(),
+                        bottom: 0;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='left'] .popup-arrow {
-                right: 0;
-            }""".trimIndent(),
+                        right: 0;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement^='right'] .popup-arrow {
-                left: 0;
-            }""".trimIndent(),
+                        left: 0;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='bottom'] > .transform {
-                transform-origin: top;
-            }""".trimIndent(),
+                        transform-origin: top;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='bottom-start'] > .transform {
-                transform-origin: top left;
-            }""".trimIndent(),
+                        transform-origin: top left;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='bottom-right'] > .transform {
-                transform-origin: top right;
-            }""".trimIndent(),
+                        transform-origin: top right;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='top'] > .transform {
-                transform-origin: bottom;
-            }""".trimIndent(),
+                        transform-origin: bottom;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='top-start'] > .transform {
-                transform-origin: bottom left;
-            }""".trimIndent(),
+                        transform-origin: bottom left;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='top-right'] > .transform {
-                transform-origin: bottom right;
-            }""".trimIndent(),
+                        transform-origin: bottom right;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='left'] > .transform {
-                transform-origin: right;
-            }""".trimIndent(),
+                        transform-origin: right;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='left-start'] > .transform {
-                transform-origin: top right;
-            }""".trimIndent(),
+                        transform-origin: top right;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='left-end'] > .transform {
-                transform-origin: bottom right;
-            }""".trimIndent(),
+                        transform-origin: bottom right;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='right'] > .transform {
-                transform-origin: left;
-            }""".trimIndent(),
+                        transform-origin: left;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='right-start'] > .transform {
-                transform-origin: top left;
-            }""".trimIndent(),
+                        transform-origin: top left;
+                    }""".trimIndent(),
                     """.popup[data-popup-placement='right-end'] > .transform {
-                transform-origin: bottom left;
-            }""".trimIndent(),
+                        transform-origin: bottom left;
+                    }""".trimIndent(),
                     """.$FRITZ2_POPUP_VISIBLE {
-                visibility: visible;
-            }""".trimIndent(),
+                        visibility: visible;
+                    }""".trimIndent(),
                     """.$FRITZ2_POPUP_HIDDEN {
-                visibility: hidden;
-            }""".trimIndent(),
+                        visibility: hidden;
+                    }""".trimIndent(),
                 )
             )
         }
@@ -201,9 +231,16 @@ abstract class PopUpPanel<C : HTMLElement>(
         addMiddleware(flip())
     }
 
-
     /**
      * Adds a new Middleware to the array of middlewares.
+     *
+     * For example
+     * ```kotlin
+     * addMiddleware(offset(10))
+     * ```
+     *
+     * Be aware to follow the recommended precedences by floating-ui's middlewares:
+     * https://floating-ui.com/docs/middleware#ordering
      *
      * Check https://floating-ui.com/docs/middleware for available middlewares.
      *
@@ -218,14 +255,29 @@ abstract class PopUpPanel<C : HTMLElement>(
     /**
      * Adds an arrow to the PopupPanel. The exact position will be calculated by the FloatingUI component and can be
      * collected from [computedPosition]. The arrow points to the reference element.
+     *
+     * By default, a width and height of `8px` each is set by the default class.
+     * If you want to change this, you must provide both properties somehow, depending on your CSS handling / framework.
+     *
+     * The [offset] from the reference element has a default of `5px` and can be also adapted as needed.
+     *
+     * Remember that fritz2 is completely CSS framework-agnostic!
+     *
+     * @param size the size of the arrow using any valid CSS `width` or `height` expression. Defaults to `8` each
+     * @param offset the distance between the reference element and the panel in pixels. Defaults to `5`
      */
-    fun arrow(c: String = "popup-arrow-default") {
-        div(classes(c, "popup-arrow")) {
+    fun arrow(size: String = "popup-arrow-default", offset: Int = 5) {
+        div(joinClasses(size, "popup-arrow")) {
             arrow = this
+            addMiddleware(offset(offset))
             addMiddleware(arrow { element = domNode })
-            addMiddleware(offset(5))
             inlineStyle(computedPosition.mapNotNull { it.middlewareData?.arrow }
-                .map { "left: ${it.x}px; top: ${it.y}px;" })
+                .map {
+                    buildString {
+                        it.x?.let { x -> append("left: ${x}px;") }
+                        it.y?.let { y -> append(" top: ${y}px;") }
+                    }
+                })
         }
     }
 
@@ -248,10 +300,27 @@ abstract class PopUpPanel<C : HTMLElement>(
 
             beforeUnmount { _, _ -> cleanup.invoke() }
 
+            afterMount { _, _ ->
+                var parent: Node? = reference.domNode
+                while (parent != null) {
+                    if (parent in childToParent) break
+                    parent = parent.parentNode
+                }
+                childToParent = childToParent + (domNode to parent)
+            }
+
+            beforeUnmount { _, _ ->
+                childToParent = childToParent
+                    .filterKeys { it != domNode }
+                    .mapValues { (_, parent) -> parent.takeIf { it != domNode } }
+            }
+
             attr("data-popup-placement", computedPosition.map { it.placement ?: "" })
             inlineStyle(computedPosition.map {
                 listOfNotNull(
-                    "position: ${it.strategy}", "left: ${it.x}px", "top: ${it.y}px",
+                    "position: ${it.strategy}",
+                    it.x?.let { x -> "left: ${x}px" },
+                    it.y?.let { y -> "top: ${y}px" },
                     when (size) {
                         PopUpPanelSize.Min -> "min-width: ${reference.domNode.offsetWidth}px"
                         PopUpPanelSize.Max -> "max-width: ${reference.domNode.offsetWidth}px"

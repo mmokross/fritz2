@@ -23,9 +23,9 @@ To use fritz2, set up a Kotlin multiplatform-project using one of these options:
 
 ```kotlin
 plugins {
-    kotlin("multiplatform") version "1.9.20"
+    kotlin("multiplatform") version "1.9.22"
     // KSP support needed for Lens generation
-    id("com.google.devtools.ksp") version "1.9.20-1.0.14"
+    id("com.google.devtools.ksp") version "1.9.22-1.0.16"
 }
 
 repositories {
@@ -44,36 +44,26 @@ kotlin {
     }.binaries.executable()
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             dependencies {
                 implementation("dev.fritz2:core:$fritz2Version")
                 // implementation("dev.fritz2:headless:$fritz2Version") // optional headless comp
             }
         }
-        val jvmMain by getting {
+        jvmMain {
             dependencies {
             }
         }
-        val jsMain by getting {
+        jsMain {
             dependencies {
             }
         }
     }
 }
 
-/**
- * KSP support for Lens generation - start
- */
-dependencies {
-    add("kspCommonMainMetadata", "dev.fritz2:lenses-annotation-processor:$fritz2Version")
-}
-kotlin.sourceSets.commonMain { kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin") }
-tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
-    if (name != "kspCommonMainKotlinMetadata") dependsOn("kspCommonMainKotlinMetadata")
-}
-/**
- * KSP support - end
- */
+// KSP support for Lens generation
+dependencies.kspCommonMainMetadata("dev.fritz2:lenses-annotation-processor:$fritz2Version")
+kotlin.sourceSets.commonMain { tasks.withType<KspTaskMetadata> { kotlin.srcDir(destinationDirectory) } }
 ```
 
 ## Organize Your Code

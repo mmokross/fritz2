@@ -4,8 +4,10 @@ import dev.fritz2.core.*
 import dev.fritz2.headless.foundation.InitialFocus.*
 import kotlinx.browser.document
 import kotlinx.browser.window
-import kotlinx.coroutines.*
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.awaitAnimationFrame
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.plus
 import org.w3c.dom.Element
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.events.KeyboardEvent
@@ -184,6 +186,27 @@ enum class InitialFocus(val focus: Boolean) {
 }
 
 /**
+ * Small helper type to gather the information for the focus trapping.
+ *
+ * @property active `true` is focus should be trapped, else false
+ * @property backwards `true` if `SHIFT + TAB` is pressed to tab backwards through the elements, else `false`
+ */
+private data class TrapMode(val active: Boolean, val backwards: Boolean)
+
+/**
+ * Creates a [Flow] of [KeyboardEvent]s only if `Tab` or `Shift + Tab` was pressed. This is needed for the focus-trap.
+ * If so, stops the propagation and any default behaviour.
+ */
+private val Tag<HTMLElement>.tabPress: Flow<KeyboardEvent>
+    get() = keydownsIf {
+        if (setOf(Keys.Tab, Keys.Shift + Keys.Tab).contains(shortcutOf(this))) {
+            preventDefault()
+            stopImmediatePropagation()
+            true
+        } else false
+    }.map { it }
+
+/**
  * This function enables a so called focus-trap. This enforces the specific behaviour within the receiver [Tag],
  * that switching the focus is only possible on elements that are inside the receiver. No other focusable elements
  * outside the enclosing container will get the focus.
@@ -202,7 +225,7 @@ enum class InitialFocus(val focus: Boolean) {
  */
 fun Tag<HTMLElement>.trapFocusInMountpoint(restoreFocus: Boolean = true, setInitialFocus: InitialFocus = TryToSet) {
     setInitialFocusOnDemandFromMountpoint(setInitialFocus)
-    trapFocusOn(keydowns.filter { setOf(Keys.Tab, Keys.Shift + Keys.Tab).contains(shortcutOf(it)) })
+    trapFocusOn(tabPress.transform { event -> emit(TrapMode(true, shortcutOf(event).shift)) })
     restoreFocusOnDemandFromMountpoint(restoreFocus)
 }
 
@@ -250,11 +273,11 @@ fun Tag<HTMLElement>.trapFocusWhenever(
             setInitialFocusOnDemandFromWhenever(setInitialFocus)
         }
     }
-    trapFocusOn(
-        sharedCondition.flatMapLatest { isActive ->
-            keydowns.filter { isActive && setOf(Keys.Tab, Keys.Shift + Keys.Tab).contains(shortcutOf(it)) }
-        }
-    )
+
+    trapFocusOn(sharedCondition.flatMapLatest { cond ->
+        if (cond) tabPress.map { TrapMode(cond, shortcutOf(it).shift) }
+        else flowOf(TrapMode(active = false, backwards = false))
+    })
     restoreFocusOnDemandFromWhenever(
         sharedCondition.filter { it }.map { focusedElementBeforeTrap }
             .combine(sharedCondition.map { !it && restoreFocus }, ::Pair)
@@ -275,13 +298,11 @@ private fun Tag<HTMLElement>.setInitialFocusOnDemandFromWhenever(setInitialFocus
     }
 }
 
-private fun Tag<HTMLElement>.trapFocusOn(tabEvents: Flow<KeyboardEvent>) {
-    tabEvents handledBy { event ->
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        focusIn(
+private fun Tag<HTMLElement>.trapFocusOn(tabEvents: Flow<TrapMode>) {
+    tabEvents handledBy { mode ->
+        if (mode.active) focusIn(
             domNode,
-            if (shortcutOf(event).shift) FocusOptions(previous = true, wrapAround = true)
+            if (mode.backwards) FocusOptions(previous = true, wrapAround = true)
             else FocusOptions(next = true, wrapAround = true)
         )
     }

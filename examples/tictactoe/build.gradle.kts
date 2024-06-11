@@ -1,3 +1,7 @@
+import com.google.devtools.ksp.gradle.KspTask
+import com.google.devtools.ksp.gradle.KspTaskMetadata
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -12,38 +16,27 @@ kotlin {
     jvm() // needed for kspCommonMainMetadata
     js(IR) {
         browser {
-            webpackTask(Action {
+            webpackTask {
                 cssSupport {
                     enabled.set(true)
                 }
-            })
+            }
         }
     }.binaries.executable()
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             dependencies {
                 implementation(project(":core"))
             }
         }
-        val jsMain by getting {
+        jsMain {
             dependencies {
             }
         }
     }
 }
 
-/**
- * KSP support - start
- */
-dependencies {
-    add("kspCommonMainMetadata", project(":lenses-annotation-processor"))
-}
-
-kotlin.sourceSets.commonMain { kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin") }
-tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
-    if (name != "kspCommonMainKotlinMetadata") dependsOn("kspCommonMainKotlinMetadata")
-}
-/**
- * KSP support - end
- */
+// KSP support for Lens generation
+dependencies.kspCommonMainMetadata(project(":lenses-annotation-processor"))
+kotlin.sourceSets.commonMain { tasks.withType<KspTaskMetadata> { kotlin.srcDir(destinationDirectory) } }

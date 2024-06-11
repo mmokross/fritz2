@@ -1,3 +1,7 @@
+import com.google.devtools.ksp.gradle.KspTask
+import com.google.devtools.ksp.gradle.KspTaskMetadata
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -15,35 +19,23 @@ kotlin {
     }.binaries.executable()
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             dependencies {
                 implementation(project(":core"))
                 implementation(KotlinX.datetime)
             }
         }
-        val jvmMain by getting {
+        jvmMain {
             dependencies {
             }
         }
-        val jsMain by getting {
+        jsMain {
             dependencies {
             }
         }
     }
 }
 
-/**
- * KSP support - start
- */
-dependencies {
-    add("kspCommonMainMetadata", project(":lenses-annotation-processor"))
-}
-
-kotlin.sourceSets.commonMain { kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin") }
-tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
-    if (name != "kspCommonMainKotlinMetadata") dependsOn("kspCommonMainKotlinMetadata")
-}
-// needed to work on Apple Silicon. Should be fixed by 1.6.20 (https://youtrack.jetbrains.com/issue/KT-49109#focus=Comments-27-5259190.0-0)
-/**
- * KSP support - end
- */
+// KSP support for Lens generation
+dependencies.kspCommonMainMetadata(project(":lenses-annotation-processor"))
+kotlin.sourceSets.commonMain { tasks.withType<KspTaskMetadata> { kotlin.srcDir(destinationDirectory) } }

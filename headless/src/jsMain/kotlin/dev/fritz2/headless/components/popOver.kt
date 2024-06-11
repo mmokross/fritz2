@@ -23,7 +23,6 @@ class PopOver<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenCl
 
     fun render() {
         attr("id", componentId)
-        trapFocusWhenever(opened)
     }
 
     /**
@@ -43,7 +42,7 @@ class PopOver<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenCl
             if (!openState.isSet) openState(storeOf(false))
             content()
             attr(Aria.expanded, opened.asString())
-            toggleOnClicksEnterAndSpace()
+            activations() handledBy toggle
         }.also { button = it }
     }
 
@@ -62,7 +61,7 @@ class PopOver<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenCl
     }
 
     inner class PopOverPanel<C : HTMLElement>(
-        val renderContext: RenderContext,
+        renderContext: RenderContext,
         tagFactory: TagFactory<Tag<C>>,
         classes: String?,
         scope: ScopeContext.() -> Unit
@@ -73,7 +72,7 @@ class PopOver<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenCl
         "$componentId-items",
         scope,
         this@PopOver.opened,
-        reference = button ?: button {  },
+        reference = button,
         ariaHasPopup = Aria.HasPopup.dialog
     )
 
@@ -96,8 +95,8 @@ class PopOver<C : HTMLElement>(tag: Tag<C>, id: String?) : Tag<C> by tag, OpenCl
             PopOverPanel(this, tag, classes, scope).run {
                 initialize()
                 render()
-                closeOnEscape()
-                closeOnBlur()
+                trapFocusWhenever(opened)
+                closeOnDismiss()
             }
         }
     }
@@ -152,7 +151,7 @@ fun <C : HTMLElement> RenderContext.popOver(
     initialize: PopOver<C>.() -> Unit
 ): Tag<C> {
     addComponentStructureInfo("popOver", this@popOver.scope, this)
-    return tag(this, classes(classes, PopUpPanel.POPUP_RELATIVE), id, scope) {
+    return tag(this, joinClasses(classes, PopUpPanel.POPUP_RELATIVE), id, scope) {
         PopOver(this, id).run {
             initialize(this)
             render()

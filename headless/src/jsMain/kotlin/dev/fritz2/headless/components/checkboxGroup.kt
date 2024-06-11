@@ -2,8 +2,7 @@ package dev.fritz2.headless.components
 
 import dev.fritz2.core.*
 import dev.fritz2.headless.foundation.*
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.w3c.dom.*
 
@@ -160,18 +159,21 @@ class CheckboxGroup<C : HTMLElement, T>(tag: Tag<C>, private val explicitId: Str
                     withKeyboardNavigation = false
                     toggleEvent = changes
                 }
-                value.handler?.invoke(this, value.data.flatMapLatest { value ->
-                    toggleEvent.map { if (value.contains(option)) value - option else value + option }
-                })
+                value.handler?.invoke(this, toggleEvent
+                    .map { value.data.first() }
+                    .map { value -> if (value.contains(option)) value - option else value + option })
                 if (withKeyboardNavigation) {
                     value.handler?.invoke(
                         this,
-                        value.data.flatMapLatest { value ->
-                            keydowns.filter { shortcutOf(it) == Keys.Space }.map {
-                                it.stopImmediatePropagation()
-                                it.preventDefault()
-                                if (value.contains(option)) value - option else value + option
-                            }
+                        keydownsIf {
+                            if (shortcutOf(this) == Keys.Space) {
+                                preventDefault()
+                                stopImmediatePropagation()
+                                true
+                            } else false
+                        }.map {
+                            val value = value.data.first()
+                            if (value.contains(option)) value - option else value + option
                         })
                 }
             }.also { toggle = it }

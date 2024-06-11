@@ -238,13 +238,8 @@ interface Tag<out E : Element> : RenderContext, WithDomNode<E>, WithEvents<E> {
         }
     }
 
-    /**
-     * Creates an [Listener] for the given event [eventName].
-     *
-     * @param eventName of the [Event] to listen for
-     */
-    override fun <X : Event> subscribe(eventName: String, capture: Boolean, init: Event.() -> Unit): Listener<X, E> =
-        Listener(domNode.subscribe(eventName, capture, init))
+    override fun <X : Event> subscribe(eventName: String, capture: Boolean, selector: X.() -> Boolean): Listener<X, E> =
+        Listener(domNode.subscribe(eventName, capture, selector))
 
     /**
      * Adds text-content of a [Flow] at this position
@@ -376,7 +371,9 @@ open class HtmlTag<out E : Element>(
     private val classesStateFlow by lazy {
         MutableStateFlow<List<StateFlow<String>>>(listOfNotNull(baseClass?.let { MutableStateFlow(it) }))
             .also { classesFlowList ->
-                attr("class", classesFlowList.flatMapLatest { styleFlows -> combine(styleFlows) { classes(*it) } })
+                attr("class", classesFlowList.flatMapLatest { styleFlows ->
+                    combine(styleFlows) { joinClasses(*it) }
+                })
             }
     }
 
@@ -386,7 +383,7 @@ open class HtmlTag<out E : Element>(
      * This function is used to create the initial class name values to be applied immediately
      * to the domnode.
      */
-    private fun buildClasses() = classes(*classesStateFlow.value.map { it.value }.toTypedArray())
+    private fun buildClasses() = joinClasses(*classesStateFlow.value.map { it.value }.toTypedArray())
 
     override fun className(value: String) {
         classesStateFlow.value += MutableStateFlow(value)

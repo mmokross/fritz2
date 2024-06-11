@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.dokka")
 }
 
 ksp {
@@ -9,16 +10,16 @@ ksp {
 }
 
 kotlin {
+    js(IR) {
+        browser()
+    }.binaries.executable()
     jvm {
         testRuns["test"].executionTask.configure {
             useJUnitPlatform()
         }
     }
-    js(IR) {
-        browser()
-    }.binaries.executable()
     sourceSets {
-        val jvmMain by getting {
+        jvmMain {
             dependencies {
                 api(kotlin("stdlib"))
                 api(project(":core"))
@@ -31,7 +32,7 @@ kotlin {
             }
         }
 
-        val jvmTest by getting {
+        jvmTest {
             dependencies {
                 implementation(Kotlin.test.junit5)
                 implementation(Testing.junit.jupiter.params)
