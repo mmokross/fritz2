@@ -1,9 +1,14 @@
 public final class dev/fritz2/core/CollectionLensGetException : java/lang/Exception {
-	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
 }
 
 public final class dev/fritz2/core/CollectionLensSetException : java/lang/Exception {
 	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class dev/fritz2/core/FlowsKt {
+	public static final fun whenever (Ljava/lang/Object;Lkotlinx/coroutines/flow/Flow;)Lkotlinx/coroutines/flow/Flow;
+	public static final fun whenever (Lkotlinx/coroutines/flow/Flow;Lkotlinx/coroutines/flow/Flow;)Lkotlinx/coroutines/flow/Flow;
 }
 
 public final class dev/fritz2/core/Id {
@@ -31,6 +36,7 @@ public final class dev/fritz2/core/InspectorKt {
 	public static final fun mapByIndex (Ldev/fritz2/core/Inspector;I)Ldev/fritz2/core/Inspector;
 	public static final fun mapByKey (Ldev/fritz2/core/Inspector;Ljava/lang/Object;)Ldev/fritz2/core/Inspector;
 	public static final fun mapNull (Ldev/fritz2/core/Inspector;Ljava/lang/Object;)Ldev/fritz2/core/Inspector;
+	public static final fun mapNullable (Ldev/fritz2/core/Inspector;Ljava/lang/Object;)Ldev/fritz2/core/Inspector;
 }
 
 public abstract interface class dev/fritz2/core/Lens {
@@ -57,6 +63,9 @@ public final class dev/fritz2/core/LensKt {
 }
 
 public abstract interface annotation class dev/fritz2/core/Lenses : java/lang/annotation/Annotation {
+}
+
+public abstract interface annotation class dev/fritz2/core/NoLens : java/lang/annotation/Annotation {
 }
 
 public final class dev/fritz2/core/RootInspector : dev/fritz2/core/Inspector {

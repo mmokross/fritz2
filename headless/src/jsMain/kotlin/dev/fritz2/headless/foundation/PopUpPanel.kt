@@ -16,6 +16,7 @@ import dev.fritz2.headless.foundation.utils.floatingui.utils.StrategyValues
 import kotlinx.coroutines.flow.*
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.Node
+import org.w3c.dom.events.UIEvent
 
 /**
  * Enum-Class to set the width of the Popup to
@@ -68,10 +69,8 @@ abstract class PopUpPanel<C : HTMLElement>(
         if (reference != null) add(reference.domNode)
     }
 
-    /**
-     * Closes the [PopUpPanel] when dismissed, i.e. by clicking outside the element or pressing the Escape key.
-     */
-    fun OpenClose.closeOnDismiss() {
+
+    private val dismissals: Flow<UIEvent> by lazy {
         merge(
             Window.clicks.filter { event ->
                 opened.first()
@@ -80,8 +79,30 @@ abstract class PopUpPanel<C : HTMLElement>(
                         && event.composedPath().none { it == this }
             },
             Window.keydowns.filter { opened.first() && shortcutOf(it) == Keys.Escape }
-        ) handledBy close
+        )
     }
+
+    /**
+     * Executes the given [action] when the [PopUpPanel] is dismissed, i.e. by clicking outside the element or pressing
+     * the Escape key.
+     *
+     * @see closeOnDismiss
+     */
+    fun onDismiss(action: () -> Unit) {
+        dismissals handledBy {
+            action()
+        }
+    }
+
+    /**
+     * Closes the [PopUpPanel] when dismissed, i.e. by clicking outside the element or pressing the Escape key.
+     *
+     * @see onDismiss
+     */
+    fun OpenClose.closeOnDismiss() {
+        dismissals handledBy close
+    }
+
 
     companion object {
         private var childToParent = emptyMap<Node, Node?>()
@@ -214,7 +235,7 @@ abstract class PopUpPanel<C : HTMLElement>(
      *
      * @see PopUpPanel.size
      */
-    var size: PopUpPanelSize = PopUpPanelSize.None
+    var size: PopUpPanelSize = None
 
     private val computedPositionStore: Store<ComputePositionReturn> = storeOf(obj {})
 
@@ -281,24 +302,52 @@ abstract class PopUpPanel<C : HTMLElement>(
         }
     }
 
+    /**
+     * Triggers the calculation of the panel's position.
+     *
+     * The calculation process is _asynchronous_ - once the computation has finished, the resulting values are
+     * applied in the right places _internally_.
+     *
+     * In most cases there is no need to call this method manually. There are cases, however, where this may be
+     * necessary: e.g. when you are using a panel that is positioned at the bottom-end of the reference and that has a
+     * changing size. Whenever the size changes, the position needs to be updated.
+     *
+     * ###### Background
+     * Normally, the underlying floating-ui library can be configured to handle such cases automatically. There is a
+     * [bug](https://github.com/floating-ui/floating-ui/issues/1740), however, that prevents us from using this feature.
+     * As a result, manual re-computation of the position is needed in those cases.
+     */
+    protected fun computePosition() {
+        reference?.let { ref ->
+            computePosition(ref.domNode, domNode, config).then { computedPositionStore.update(it) }
+        }
+    }
+
     open fun render() {
         if (reference != null) {
 
-            val computePosition = {
-                computePosition(reference.domNode, domNode, config)
-                    .then { computedPositionStore.update(it) }
+            // call it once to initialize some position definitely inside the page's content.
+            // otherwise the page would grow with invisible space in bottom direction.
+            computePosition()
+
+            var cleanup: () -> Unit = {}
+
+            opened handledBy {
+                if (it) {
+                    cleanup = autoUpdate(
+                        reference.domNode,
+                        domNode,
+                        options = obj {
+                            animationFrame = true
+                            // apply workaround in order to bypass [issue](https://github.com/floating-ui/floating-ui/issues/1740)
+                            elementResize = false
+                        },
+                        update = { computePosition() }
+                    )
+                } else {
+                    cleanup()
+                }
             }
-
-            val cleanup = autoUpdate(
-                reference.domNode,
-                domNode,
-                options = obj { animationFrame = true },
-                update = { computePosition() }
-            )
-
-            afterMount { _, _ -> computePosition() }
-
-            beforeUnmount { _, _ -> cleanup.invoke() }
 
             afterMount { _, _ ->
                 var parent: Node? = reference.domNode
@@ -316,18 +365,18 @@ abstract class PopUpPanel<C : HTMLElement>(
             }
 
             attr("data-popup-placement", computedPosition.map { it.placement ?: "" })
-            inlineStyle(computedPosition.map {
-                listOfNotNull(
-                    "position: ${it.strategy}",
-                    it.x?.let { x -> "left: ${x}px" },
-                    it.y?.let { y -> "top: ${y}px" },
+            inlineStyle(computedPosition.map { positionReturn ->
+                buildString {
+                    append("position: ${positionReturn.strategy}; ")
+                    positionReturn.x?.let { x -> append("left: ${x}px; ") }
+                    positionReturn.y?.let { y -> append("top: ${y}px; ") }
                     when (size) {
-                        PopUpPanelSize.Min -> "min-width: ${reference.domNode.offsetWidth}px"
-                        PopUpPanelSize.Max -> "max-width: ${reference.domNode.offsetWidth}px"
-                        PopUpPanelSize.Exact -> "width: ${reference.domNode.offsetWidth}px"
-                        PopUpPanelSize.None -> null
-                    }
-                ).joinToString("; ")
+                        Min -> "min-width: ${reference.domNode.offsetWidth}px"
+                        Max -> "max-width: ${reference.domNode.offsetWidth}px"
+                        Exact -> "width: ${reference.domNode.offsetWidth}px"
+                        None -> null
+                    }?.let { style -> append(style) }
+                }
             })
 
             reference.apply {
@@ -339,7 +388,6 @@ abstract class PopUpPanel<C : HTMLElement>(
             className(
                 opened.transform {
                     if (it) {
-                        computePosition()
                         emit(true)
                         this@PopUpPanel.waitForAnimation()
                     } else {

@@ -14,7 +14,7 @@ eleventyNavigation:
 
 In fritz2, all HTML-Events are either encapsulated within a `Tag`-scope or within the special `Window`-object, which both
 offer access to all global events. A complete list can be found in the
-[events.kt](https://github.com/jwstegemann/fritz2/blob/master/core/src/jsMain/kotlin/dev/fritz2/core/events.kt) file.
+[Events.kt](https://github.com/jwstegemann/fritz2/blob/master/core/src/jsMain/kotlin/dev/fritz2/core/Events.kt) file.
 
 The most important aspect to understand is that an event in fritz2 is just a type derived by `Flow`. You can
 use all events as the source of an action which should be handled by a handler-function.
@@ -180,7 +180,7 @@ div {
 ```
 
 The user can now click on the button. The expected result is:
-- a log message in the console: `stopPropagation clicked!` - nothing more!
+- a log message in the console: `stopImmediatePropagation clicked!` - nothing more!
 
 The difference becomes obvious now: All listeners following the `stopImmediatePropagation` call will not get any of the 
 emitted values. Additionally, the bubbling also is stopped, so no handlers of any parent-elements will be called.

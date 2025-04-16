@@ -149,8 +149,9 @@ the `id` will be used to generate a valid HTML `id` representing the path throug
 This can be used to identify your elements semantically (for validation or automated ui-tests for example).
 
 If you have deep nested structures or a lot of them, you may want to automate this behavior.
-fritz2 offers an annotation `@Lenses` you can add to your data-classes in the `commonMain` source-set of
-your multiplatform project:
+
+fritz2 offers a `@Lenses` annotation you can add to your data-classes, sealed-classes and sealed-interfaces in the 
+`commonMain` source-set of your multiplatform project:
 ```kotlin
 @Lenses
 data class Person(val name: String, val value: String) {
@@ -174,6 +175,16 @@ Have a look at the [validation-example](/examples/validation) to see how to set 
 
 This will also help you define a multiplatform project for sharing your model and validation code between
 the browser and backend.
+
+::: info
+There are other lenses generated as well. Especially when dealing with `sealed`-hierarchies, fritz2 offers more
+helpful variants that are commonly needed to apply different idioms and patterns like *validation* or holding the base
+type in some `Store` for type based UI design.
+
+You can find out more in the two applications described in the sections 
+[Dealing with Sealed Type Hierarchies](#dealing-with-sealed-type-hierarchies) 
+and [Delegating Validation in Sealed Hierarchies](/docs/validation/#delegating-validation-in-sealed-hierarchies).
+:::
 
 ### Destructuring Complex Models With Mapped `Store`s and `Lense`s
 
@@ -288,6 +299,24 @@ val personStore = storeOf(Person(null), job = Job())
 val nameStore = personStore.map(Person.name()).mapNull("")
 ```
 
+#### The other way around
+
+You may also encounter special cases where you would like to apply the above-mentioned mapping the other way around:
+e.g. when dealing with a non-nullable data model in combination with a nullable data-binding of a component such as a
+combobox.
+
+For those cases, use the `mapNullable` mapper function:
+
+```kotlin
+val nonNullableStore: Store<String> = storeOf("")
+
+val nullableStore: Store<String?> = 
+    nonNullableStore.mapNullable(placeholder = "Unknown")
+//                               ^^^^^^^^^^^^^^^^^^^^^^^
+//                               When the parent has the specified placeholder value,
+//                               the mapped Store will have `null` as its value.
+```
+
 ### Combining Lenses
 
 A `Lens` supports the `plus`-operator with another lens in order to create a new lens which combines the two. 
@@ -389,25 +418,27 @@ Take a look at our complete [validation example](/examples/validation) to get an
 
 ### Summary of Store-Mapping-Factories
 
-| Factory                                                         | Use case                                                                                                                                                  |
-|-----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Store<P>.map(lens: Lens<P, T>): Store<T>`                      | Most generic map-function. Maps any `Store` given a `Lens`. Use for model destructuring with automatic generated lenses for example.                      |
-| `Store<P?>.map(lens: Lens<P & Any, T>): Store<T>`               | Maps any nullable `Store` given a `Lens` to a `Store` of a definitely none nullable `T`. Use in `render*`-content expressions combined with a null check. |
-| `Store<List<T>>.mapByElement(element: T, idProvider): Store<T>` | Maps a `Store` of a `List<T>` to one element of that list. Works for entities, as a stable Id is needed.                                                  |
-| `Store<List<T>>.mapByIndex(index: Int): Store<T>`               | Maps a `Store` of a `List<T>` to one element of that list using the index.                                                                                |
-| `Store<Map<K, V>>.mapByKey(key: K): Store<V>`                   | Maps a `Store` of a `Map<T>` to one element of that map using the key.                                                                                    |
-| `Store<T?>.mapNull(default: T): Store<T>`                       | Maps a `Store` of a nullable `T` to a `Store` of a definitely none nullable `T` using a default value in case of `null` in source-store.                  |
-| `MapRouter.mapByKey(key: String): Store<String>`                | Maps a `MapRouter` to a `Store`. See [chapter about routers](/docs/routing/#maprouter) for more information.                                              |
+| Factory                                                         | Use case                                                                                                                                                                          |
+|-----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Store<P>.map(lens: Lens<P, T>): Store<T>`                      | Most generic map-function. Maps any `Store` given a `Lens`. Use for model destructuring with automatic generated lenses for example.                                              |
+| `Store<P?>.map(lens: Lens<P & Any, T>): Store<T>`               | Maps any nullable `Store` given a `Lens` to a `Store` of a definitely none nullable `T`. Use in `render*`-content expressions combined with a null check.                         |
+| `Store<List<T>>.mapByElement(element: T, idProvider): Store<T>` | Maps a `Store` of a `List<T>` to one element of that list. Works for entities, as a stable Id is needed.                                                                          |
+| `Store<List<T>>.mapByIndex(index: Int): Store<T>`               | Maps a `Store` of a `List<T>` to one element of that list using the index.                                                                                                        |
+| `Store<Map<K, V>>.mapByKey(key: K): Store<V>`                   | Maps a `Store` of a `Map<T>` to one element of that map using the key.                                                                                                            |
+| `Store<T?>.mapNull(default: T): Store<T>`                       | Maps a `Store` of a nullable `T` to a `Store` of a definitely none nullable `T` using a default value in case of `null` in source-store.                                          |
+| `Store<T>.mapNullable(placeholder: T): Store<T?>`               | Maps a `Store` of `T` to a `Store` of `T?`, replacing the given `placeholder` from the parent with `null` in the sub Store. This function is the reverse equivalent of `mapNull`. |
+| `MapRouter.mapByKey(key: String): Store<String>`                | Maps a `MapRouter` to a `Store`. See [chapter about routers](/docs/routing/#maprouter) for more information.                                                                      |
 
 ### Summary Lens-Factories
 
-| Factory                                                                   | Use case                                                                                        |
-|---------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `lensOf(id: String, getter: (P) -> T, setter: (P, T) -> P): Lens<P, T>`   | Most generic lens (used by `lenses-annotation-processor`. Fits for complex model destructuring. |
-| `lensOf(parse: (String) -> P, format: (P) -> String): Lens<P, String>`    | Formatting lens: Use for mapping into `String`s.                                                |
-| `lensForElement(element: T, idProvider: IdProvider<T, I>): Lens<List, T>` | Select one element from a list of entities, therefore a stable Id is needed.                    |
-| `lensForElement(index: Int): Lens<List, T>`                               | Select one element from a list by index. Useful for value objects.                              |
-| `lensForElement(key: K): Lens<Map<K, V>, V>`                              | Select one element from a map by key.                                                           |
+| Factory                                                                   | Use case                                                                                               |
+|---------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| `lensOf(id: String, getter: (P) -> T, setter: (P, T) -> P): Lens<P, T>`   | Most generic lens (used by `lenses-annotation-processor`. Fits for complex model destructuring.        |
+| `lensOf(parse: (String) -> P, format: (P) -> String): Lens<P, String>`    | Formatting lens: Use for mapping into `String`s.                                                       |
+| `lensForElement(element: T, idProvider: IdProvider<T, I>): Lens<List, T>` | Select one element from a list of entities, therefore a stable Id is needed.                           |
+| `lensForElement(index: Int): Lens<List, T>`                               | Select one element from a list by index. Useful for value objects.                                     |
+| `lensForElement(key: K): Lens<Map<K, V>, V>`                              | Select one element from a map by key.                                                                  |
+| `lensForUpcasting(): Lens<Map<P, C>`                                      | Casting lens: Interpret parent as specific subtype. Handles `ClassCastException` for render edge-cases |
 
 ## Advanced Topics
 
@@ -476,3 +507,532 @@ render {
 
 You might notice that the parameters of `renderEach` and `mapByElement` are identically. That's why it is possible
 to encapsulate the store mapping directly into the former presented convenience function.
+
+### Dealing with sealed Type Hierarchies
+
+There are special needs when you integrate `sealed` types into your model. It does not matter whether this is at the
+root or nested inside your model-tree. There are always similar idioms that need to be applied. Those idioms need
+special lenses, that will be generated by our `lenses-annotation-processor` for you.
+
+Imagine the following example model:
+```kotlin
+import dev.fritz2.core.Lenses
+import dev.fritz2.core.NoLens
+
+@Lenses
+sealed interface Wish {
+    val label: String
+    companion object
+}
+
+@Lenses
+data class Wishlist(
+  val name: String,
+  val wishes: List<Wish>
+) {
+  companion object
+}
+```
+
+As you can see, we want to model a wishlist, which simply holds a list of wishes.
+A `Wish` is a `sealed interface` that defines a `label` for all common children. It is also annotated by the known
+`@Lenses`-annotation in order to tell the annotation processor to create lenses for this base type too.
+
+The `WhishList` simply serves as a root node of the model to integrate the sealed hierarchy into another type.
+
+:::info
+Our support for sealed type hierarchies has the following restriction:
+All children of an annotated sealed base type need to be `data class`es that are themselves annotated with the `@Lenses`
+annotation. The annotation processor will fail with an error if this constraint is violated.
+:::
+
+There might be different kinds of wishes, though, which all differ in their special properties.
+Take those for example:
+```kotlin
+@Lenses
+data class Computer(
+    override val label: String,
+    val ramInKb: Int
+) : Wish {
+    companion object
+}
+
+enum class Color {
+  Blue, Red, Green, Purple, Yellow, Petrol
+}
+
+@Lenses
+data class LightSaber(
+  override val label: String,
+  val color: Color
+) : Wish {
+  companion object
+}
+```
+
+Our `WhishList.wishes` list can hold arbitrary objects of `Computer` and `LightSaber`, while both types need different
+aspects to be well-defined:
+- a computer needs RAM - as we refer to the good old homecomputer's era, we store those values in kilobytes.
+- a lightsaber needs a color - as fritz2's logo is somewhat *petrol*, we make this possible for our merch.
+
+Look at an example with a `Store` of type `WishList`:
+```kotlin
+val wishlist = Wishlist(
+    "Christmas wishes",
+    listOf(
+        LightSaber("fritz2", Color.Petrol),
+        Computer("C64", 64)
+    )
+)
+
+val storedWishList: Store<WishList> = storeOf(wishlist)
+```
+
+We would like to implement a small UI to manage those wishes. It might look similar to this:
+![Wishlist App](/img/sealed-hierarchy-example-app.png)
+
+The overall example is rather good [domain modelling](https://arrow-kt.io/learn/design/domain-modeling/), 
+but it imposes some problems when it comes to store-mapping:
+
+1. To map the main model down to the nodes of the tree (`Whislist -> wishes -> some single wish -> Computer -> ramInKb`),
+there is the need to map a store of the base type to a specific type. As mapping involves `Lens`es, we need 
+a `Lens<Wish, Computer>`, for example. How could this be done?
+2. Another difficulty arises by the fact that we also want to modify the *common* properties of the base type.  
+There is no implementation, though, so how should we implement the `setter` of a `Lens<Wish, String>` for the
+`Whish.label`-property?
+
+There are solutions with simple idioms for those two problems that you can craft by hand. fritz2's lenses
+processor creates the needed `Lens`es automatically for you, however.
+
+The following two sections demonstrate the aforementioned solutions.
+
+#### Up-Casting and Down-Casting Lenses
+
+Let us recap the paths we need to take for a store-mapping from top to bottom elements:
+- `Whislist -> wishes -> some single wish -> Computer -> ramInKb`
+- `Whislist -> wishes -> some single wish -> LightSaber -> color`
+
+We will need the following lenses to realize those mappings:
+```kotlin
+// Lenses to map to `WhishList`-properties
+val name: Lens<WhishList, String> = TODO()
+val wishes: Lens<WishList, List<Wish>> = TODO()
+
+// Lenses to map to single `Wish`
+val singleWish: Lens<List<Wish>, Wish> = TODO()
+
+// Lenses to map to *specific* child type
+// This is das "hard" problem - we need to up-cast from base type to specific type
+val computer: Lens<Wish, Computer> = TODO() // how could such an up-casting be implemented?
+val lightSaber: Lens<Wish, LightSaber> = TODO()
+
+// Lenses to map to specific `Computer`-properties
+val ramInKb: Lens<Computer, Int> = TODO()
+
+// Lenses to map to specific `LightSaber`-properties
+val color: Lens<LightSaber, Color> = TODO()
+```
+
+The two problematic lenses are the ones that need to implement the up-casting from the base type to the specific type:
+- `Lens<Wish, Computer>`
+- `Lens<Wish, LightSaber>`
+
+We need to know the specific type which we can typically solve with an appropriate `when`-expression.
+Remember the type notation of the `getter`-property of a `Lens<P, T>` is `(P) -> T` which would translate to 
+`(Wish) -> Computer` in our example case. To obtain the correct return type, we can simply cast inside the 
+`getter`-expression of our `Lens` to the specific type:
+```kotlin
+val computerLens: Lens<Wish, Computer> = lensOf(
+    id = "", // as this Lens does not change the "position" inside the tree, we preserve the overall `path`
+    getter = { it as Computer },
+    //         ^^^^^^^^^^^^^^
+    //         we need the getter to return the correct, specific type!
+    //         as we know the type, we can simply cast the object held inside the `wishes`-list
+    setter = { _, v -> v }
+)
+```
+As the `setter` has the type notion `(Wish, Computer) -> Wish` we can simply return the value as it is. It already has
+the correct specific type.
+
+:::info
+Casting from the base type to a more specific type is called up-casting.
+Since we apply this to a lens, we call this kind of lens *up-casting* lens.
+:::
+
+But beware that the above code behaves still a bit brittle, as we do not cope with casting problems!
+That's why fritz2 offers a dedicated lens factory for this use case: `lensForUpcasting`:
+```kotlin
+val computerLens: Lens<Wish, Computer> = lensForUpcasting<Wish, Computer>()
+```
+Our automatic lens generator relies on this factory too. So strive to use this, if you craft your up-casting lenses 
+manually. 
+
+Armed with such an up-casting lenses, we can easily access or change values of our example `WishList`-object:
+```kotlin
+val wishlist = Wishlist(
+    "Christmas wishes",
+    listOf(
+        LightSaber("fritz2", Color.Petrol),
+        Computer("C64", 64) // index of 1 in list
+    )
+)
+
+val upcastingLens: Lens<Wish, Computer> = lensForUpcasting<Wish, Computer>()
+
+// craft a lens to access the `Computer.raminKb`-property from a `WishList` by combining the
+// intermediate lenses by `+`-operator:
+val ramInKbLens: Lens<Wishlist, Int> =
+    Wishlist.wishes() + lensForElement(1) + upcastingLens + Computer.ramInKb()
+//  ^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^
+//  |                   |                   |               generated by annotation 
+//  |                   |                   |                
+//  |                   |                   apply our handcrafted up-casting lens to
+//  |                   |                   cast from `Wish` base type to `Computer`
+//  |                   |                                     
+//  |                   use fritz2's factory for index based lens creation
+//  |                   remember that the computer has index `1`!
+//  |
+//  generated by annotation
+
+val upgradedList = ramInKbLens.set(wishlist, 512)
+
+println(ramInKbLens.get(wishlist)) // prints: 64
+println(ramInKbLens.get(upgradedList)) // prints: 512
+```
+
+As mentioned before, fritz2's annotation processor will generate those up-casting lenses for you.
+They are named after the classname starting with a lowercase letter. Thus, `Computer` will have `computer()` as it's
+factory name.
+
+We can now use this to map the `Store` and provide some form elements to change the state:
+```kotlin
+val storedWishList: Store<WishList> = storeOf(wishlist)
+val storedWishes = storedWishList.map(Wishlist.wishes())
+storedWishList.data.map { it.wishes.withIndex().toList() }.renderEach { (index, wish) ->
+    val storedWish = storedWishes.mapByIndex(index)
+    when (wish) {
+        is LightSaber -> {
+            // we are now safe to up-cast to `LightSaber`-type!
+            val storedColor = storedWish.map(Wish.lightSaber().color())
+            //                                    ^^^^^^^^^^^^
+            //                                    use generated up-casting lens
+            label {
+                +"Color"
+                `for`("$index")
+            }
+            select(id = "$index") {
+                changes.values().map { Color.valueOf(it) } handledBy storedColor.update
+                Color.entries.forEach { color ->
+                    option {
+                        value(color.name)
+                        selected(storedColor.data.map { it == color })
+                        +color.name
+                    }
+                }
+            }
+        }
+
+        is Computer -> {
+            // we are now safe to up-cast to `Computer`-type!
+            val storedRam = storedWish.map(Wish.computer().ramInKb().asString())
+            //                                  ^^^^^^^^^^
+            //                                  use generated up-casting lens
+            label {
+                +"RAM (KB)"
+                `for`("$index")
+            }
+            input(id = "$index") {
+                type("text")
+                value(storedRam.data)
+                changes.values() handledBy storedRam.update
+            }
+        }
+    }
+}
+```
+
+As there may be use-cases where we need to access the other way round, fritz2 also creates so called *down-casting*
+lenses for each child of a sealed base type.
+
+Those are lenses, that have a specific type as their parent and the base type as the lens's outcome.
+Translated to the example there is a `Lens`-factory created on the type `LightSaber` called `wish()` that looks like 
+this:
+
+```kotlin
+public fun LightSaber.Companion.wish(): Lens<LightSaber, Wish> = lensOf(
+    "",
+    { it },
+    { _, v -> v as LightSaber }
+    //        ^^^^^^^^^^^^^^^
+    //        because `v`is of type `Wish` we need to cast it "back" into the specific parent type
+)
+```
+
+#### Delegating Lenses
+
+The second problem of sealed type hierarchies is the access of the *common* properties.
+
+As a sealed base-type is an `interface` or an `abstract class` and *not a* `data class`, there is no `copy()`-function
+we could use in order to provide a useful `setter` implementation!
+
+Let us illustrate the problem for the `Wish.label`-property:
+```kotlin
+val labelLens: Lens<Wish, String> = lensOf(
+    id = "label",
+    getter = Wish::label, // accessing is easy, but...
+    setter = { parent, value -> TODO() }
+    //                          ^^^^^^
+    //                          ... there is no way to set the value back into the parent!
+)
+```
+
+There is only one option: We must *delegate* the "work" to the children of the base type. 
+
+Remember: those need to be `data class`es, so we can rely on their `copy()`-capabilities to solve this problem:
+
+```kotlin
+val labelLens: Lens<Wish, String> = lensOf(
+    id = "label",
+    getter = { parent ->
+        // separate the different types...
+        when(parent) {
+            is Computer -> parent.label
+            //             ^^^^^^^^^^^^
+            //             ... and delegate the access to the child type
+            is LightSaber -> parent.label
+        }
+    },
+    setter = { parent, value ->
+        // separate the different types...
+        when(parent) {
+            is Computer -> parent.copy(label = value)
+            //                    ^^^^
+            //                    ... and delegate the setter work to the child type 
+            //                    by calling its `copy`-function.
+            is LightSaber -> parent.copy(label = value)
+        }
+    }
+)
+```
+
+Because the work is *delegated* to the different child types, we call this kind of lens *delegating lens*.
+
+As this is tedious to write, the fritz2's annotation processor will create those lenses for you. Because it needs to 
+be sure it can use the `copy()`-functions, there is the restriction that every child of a sealed base type needs 
+to be a `data class`! 
+
+You have already heard about this at the start of top level section, but now you understand the reason for that.
+
+Now we can provide an input-field for the common `label`-property that gets mapped to the appropriate 
+child object's field:
+
+```kotlin
+val storedWishList: Store<WishList> = storeOf(wishlist)
+val storedWishes = storedWishList.map(Wishlist.wishes())
+storedWishList.data.map { it.wishes.withIndex().toList() }.renderEach { (index, wish) ->
+    val storedWish = storedWishes.mapByIndex(index)
+    val storedLabel = storedWish.map(Wish.label())
+    //                               ^^^^^^^^^^^^
+    //                               use the generated delegating-lens to get
+    //                               a store of the common property for each instance
+    label {
+        +"Label"
+        `for`("$index-label")
+    }
+    input(id = "$index-label") {
+        type("text")
+        value(storedLabel.data)
+        changes.values() handledBy storedLabel.update
+    }
+}
+```
+
+#### Exclude Fields from Lenses Generation
+
+Sometimes you may not want to create a `Lens` for each public field of a sealed base type.
+Typical use cases may be properties that should be static for all instances, like some kind of display
+name of the type.
+
+For those cases fritz2 offers the `@NoLens`-annotation.
+
+You can simply annotate any public property of a sealed base type to exclude this property from the
+automatic lenses generation process.
+
+```kotlin
+@Lenses
+sealed interface Wish {
+    val label: String
+    
+    // Just annotate a property like this and no (delegating) lens is created
+    @NoLens
+    val typeName: String
+    
+    companion object
+}
+
+@Lenses
+data class Computer(
+    override val label: String,
+    val ramInKb: Int
+) : Wish {
+    // cannot be changed, so there is no need for a lens!
+    // (and no implementation that would make any sense - no setter possible!)
+    override val typeName: String = "Computer"
+  
+    companion object
+}
+```
+
+#### Complete Wishlist Example
+
+As this example is rather complex, the full working implementation of the preceding wishlist
+code snippets can be found below. The styling is done with [tailwindcss](https://tailwindcss.com/), so you can copy and 
+paste it in our well known [fritz2-tailwind-template](https://github.com/jwstegemann/fritz2-tailwind-template) project:
+
+```kotlin
+// somewhere in your `commonMain`-source-set:
+import dev.fritz2.core.Lenses
+import dev.fritz2.core.NoLens
+
+@Lenses
+sealed interface Wish {
+    val label: String
+    @NoLens
+    val typeName: String
+    companion object
+}
+
+@Lenses
+data class Computer(
+    override val label: String,
+    val ramInKb: Int
+) : Wish {
+    override val typeName: String = "Computer"
+    companion object
+}
+
+enum class Color { 
+    Blue, Red, Green, Purple, Yellow, Petrol
+}
+
+@Lenses
+data class LightSaber(
+    override val label: String,
+    val color: Color
+) : Wish {
+    override val typeName: String = "Lightsaber"
+    companion object
+}
+
+@Lenses
+data class Wishlist(
+    val name: String,
+    val wishes: List<Wish>
+) {
+    companion object
+}
+
+// put this in your `App.kt` inside the `jsMain`-source-set:
+render {
+    val wishlist = Wishlist(
+        "Christmas wishes",
+        listOf(
+            LightSaber("fritz2", Color.Petrol),
+            Computer("C64", 64)
+        )
+    )
+
+    val storedWishList = storeOf(wishlist)
+    val addWish = storedWishList.handle<Wish> { state, new ->
+        state.copy(wishes = state.wishes + new)
+    }
+
+    form {
+        div("bg-gray-200 m-4 p-4 rounded-md grid grid-cols-4 items-baseline") {
+            val storedName = storedWishList.map(Wishlist.name())
+            label {
+                +"Wishlist's name"
+                `for`("name")
+            }
+            input("col-span-3 p-2 rounded", id = "name") {
+                type("text")
+                value(storedName.data)
+                changes.values() handledBy storedName.update
+            }
+        }
+
+        val storedWishes = storedWishList.map(Wishlist.wishes())
+        storedWishes.data.map { it.withIndex().toList() }.renderEach { (index, wish) ->
+            val storedWish = storedWishes.mapByIndex(index)
+            div("bg-gray-200 m-4 p-4 rounded-md grid grid-cols-4") {
+                ul("grid grid-cols-subgrid col-span-4 gap-2") {
+                    li("grid grid-cols-subgrid col-span-2 items-baseline") {
+                        val storedLabel = storedWish.map(Wish.label())
+                        label {
+                            +wish.typeName
+                            `for`("$index-label")
+                        }
+                        input("p-2 rounded", id = "$index-label") {
+                            type("text")
+                            value(storedLabel.data)
+                            changes.values() handledBy storedLabel.update
+                        }
+                    }
+                    li("grid grid-cols-subgrid col-span-2 items-baseline") {
+                        when (wish) {
+                            is LightSaber -> {
+                                val storedColor = storedWish.map(Wish.lightSaber().color())
+                                label {
+                                    +"Color"
+                                    `for`("$index")
+                                }
+                                select("w-full p-2 rounded", id = "$index") {
+                                    changes.values().map { Color.valueOf(it) } handledBy storedColor.update
+                                    Color.entries.forEach { color ->
+                                        option {
+                                            value(color.name)
+                                            selected(storedColor.data.map { it == color })
+                                            +color.name
+                                        }
+                                    }
+                                }
+                            }
+
+                            is Computer -> {
+                                val storedRam = storedWish.map(Wish.computer().ramInKb().asString())
+                                label {
+                                    +"RAM (KB)"
+                                    `for`("$index")
+                                }
+                                input("p-2 rounded", id = "$index") {
+                                    type("text")
+                                    value(storedRam.data)
+                                    changes.values() handledBy storedRam.update
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        div("bg-gray-200 m-4 p-4 rounded-md grid grid-cols-4 gap-2 items-baseline") {
+            button("border border-black bg-white p-2 rounded") {
+                +"+ Lightsaber"
+                clicks.map { LightSaber("", Color.Blue) } handledBy addWish
+            }
+            button("border border-black bg-white p-2 rounded") {
+                +"+ Computer"
+                clicks.map { Computer("", 16) } handledBy addWish
+            }
+        }
+    }
+}
+```
+
+:::warning
+The above example is intentionally simply structured in order to reduce complexity and show the code in a 
+straight-forward manner.
+
+For real world application we encourage you to apply better [structure](/docs/render/#structure-ui) and divide the UI
+into smaller and reusable parts, of course.
+:::
